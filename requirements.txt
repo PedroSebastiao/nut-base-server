@@ -1,0 +1,2 @@
+asyncio
+nut-definitions==0.0.2
