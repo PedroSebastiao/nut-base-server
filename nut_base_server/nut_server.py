@@ -49,6 +49,9 @@ class NutServer:
     async def _handle_command(self, command: str) -> str:
         regexed = NUT_COMMANDS_RE.match(command)
 
+        if regexed is None:
+            return build_nut_error(NutError.UnknownCommand)
+
         cw = regexed.group("cw")
         ca = regexed.group("ca")
         args = regexed.group("a")
@@ -77,6 +80,10 @@ class NutServer:
                 return await self._list_var(args)
             case NutCommand.Logout:
                 raise DisconnectRequestedException()
+            case NutCommand.Username:
+                return "OK"
+            case NutCommand.Password:
+                return "OK"
 
         return build_nut_error(NutError.FeatureNotSupported)
 
