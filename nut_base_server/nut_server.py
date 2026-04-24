@@ -2,7 +2,7 @@
 
 import asyncio
 
-from nut_definitions import NUT_COMMANDS_RE, NutCommand, NutError, build_nut_error
+from nut_definitions import NutCommand, NutError, build_nut_error
 
 from .adapter.base_adapter import BaseAdapter
 from .exceptions import DisconnectRequestedException
@@ -46,32 +46,40 @@ class NutServer:
 
         writer.close()
 
+    # NUT_COMMANDS_RE from nut-definitions constrains args to [A-Za-z0-9]+
+    # which rejects dotted variable names like "ups.status". Match commands
+    # by prefix instead, sorted longest-first to avoid partial matches.
+    _COMMANDS = sorted(
+        [(cmd.value, cmd) for cmd in NutCommand],
+        key=lambda x: len(x[0]),
+        reverse=True,
+    )
+    _NO_ARGS_REQUIRED = {
+        NutCommand.Logout, NutCommand.ListUps, NutCommand.NetVersion,
+        NutCommand.Version, NutCommand.Help, NutCommand.StartTls,
+        NutCommand.Username, NutCommand.Password,
+    }
+
     async def _handle_command(self, command: str) -> str:
         command = command.strip()
-        regexed = NUT_COMMANDS_RE.match(command)
 
-        if regexed is None:
+        parsed = None
+        args = None
+        for prefix, cmd in self._COMMANDS:
+            if command == prefix:
+                parsed = cmd
+                args = None
+                break
+            if command.startswith(prefix + " "):
+                parsed = cmd
+                args = command[len(prefix):].strip() or None
+                break
+
+        if parsed is None:
             return build_nut_error(NutError.UnknownCommand)
 
-        cw = regexed.group("cw")
-        ca = regexed.group("ca")
-
-        if cw is None and ca is None:
+        if args is None and parsed not in self._NO_ARGS_REQUIRED:
             return build_nut_error(NutError.UnknownCommand)
-
-        # Extract args from the full command string — the regex args group
-        # only captures [A-Za-z0-9]+ so it misses dots and multi-word args
-        # (e.g. "GET VAR powerstation ups.status" would fail via regex).
-        matched_cmd = cw if cw is not None else ca
-        args = command[len(matched_cmd):].strip() or None
-
-        if cw is not None:
-            parsed = NutCommand(cw)
-
-        if ca is not None:
-            parsed = NutCommand(ca)
-            if args is None and parsed not in (NutCommand.Username, NutCommand.Password):
-                return build_nut_error(NutError.UnknownCommand)
 
         match (parsed):
             case NutCommand.GetNumlogins:
