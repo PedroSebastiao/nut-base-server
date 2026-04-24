@@ -47,6 +47,7 @@ class NutServer:
         writer.close()
 
     async def _handle_command(self, command: str) -> str:
+        command = command.strip()
         regexed = NUT_COMMANDS_RE.match(command)
 
         if regexed is None:
@@ -54,16 +55,23 @@ class NutServer:
 
         cw = regexed.group("cw")
         ca = regexed.group("ca")
-        args = regexed.group("a")
 
-        if (cw is None and ca is None) or (ca is not None and args is None):
+        if cw is None and ca is None:
             return build_nut_error(NutError.UnknownCommand)
+
+        # Extract args from the full command string — the regex args group
+        # only captures [A-Za-z0-9]+ so it misses dots and multi-word args
+        # (e.g. "GET VAR powerstation ups.status" would fail via regex).
+        matched_cmd = cw if cw is not None else ca
+        args = command[len(matched_cmd):].strip() or None
 
         if cw is not None:
             parsed = NutCommand(cw)
 
         if ca is not None:
             parsed = NutCommand(ca)
+            if args is None and parsed not in (NutCommand.Username, NutCommand.Password):
+                return build_nut_error(NutError.UnknownCommand)
 
         match (parsed):
             case NutCommand.GetNumlogins:
