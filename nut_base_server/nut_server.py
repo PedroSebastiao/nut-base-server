@@ -84,6 +84,10 @@ class NutServer:
                 return "OK"
             case NutCommand.Password:
                 return "OK"
+            case NutCommand.Login:
+                return "OK"
+            case NutCommand.NetVersion:
+                return "NETVER 1.2"
 
         return build_nut_error(NutError.FeatureNotSupported)
 
